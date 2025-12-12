@@ -685,6 +685,8 @@ class Rob(
   val rob_deq = WireInit(false.B)
   val r_partial_row = RegInit(false.B)
 
+
+
   when (io.enq_valids.reduce(_|_)) {
     r_partial_row := io.enq_partial_stall
   }
@@ -701,6 +703,29 @@ class Rob(
   } .otherwise {
     rob_head_lsb := OHToUInt(PriorityEncoderOH(rob_head_vals.asUInt))
   }
+
+  // -----------------------------------------------------------------------------
+  // Print latency between speculation and commit for each committed micro-op.
+  // Requires: uop contains .specTimestamp: UInt(64.W)
+  // -----------------------------------------------------------------------------
+
+  val cycleCounter = RegInit(0.U(64.W))
+  cycleCounter := cycleCounter + 1.U
+
+
+  for (i <- 0 until coreWidth) {
+    when (io.commit.valids(i)) {
+      val u = io.commit.uops(i)      // THIS is the committed MicroOp
+      val start  = u.specTimestamp
+      val finish = cycleCounter
+      val latency = finish - start
+
+      printf("[COMMIT] cyc=%d pc=0x%x latency=%d cycles\n",
+        finish, u.debug_pc, latency)
+    }
+  }
+
+
 
   // -----------------------------------------------
   // ROB Point-of-No-Return (PNR) Logic

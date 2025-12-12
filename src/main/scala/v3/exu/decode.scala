@@ -598,6 +598,8 @@ class DecodeUnit(implicit p: Parameters) extends BoomModule
   //-------------------------------------------------------------
 
   io.deq.uop := uop
+  uop.specTimestamp := io.enq.uop.specTimestamp
+
 }
 
 /**

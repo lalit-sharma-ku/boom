@@ -100,6 +100,13 @@ abstract class AbstractRenameStage(
   val ren1_fire       = Wire(Vec(plWidth, Bool()))
   val ren1_uops       = Wire(Vec(plWidth, new MicroOp))
 
+  // Drive the stage-1 wires from the decode inputs so FIRRTL sees them initialized.
+  // Without this the "sink not fully initialized" errors occur.
+  for (w <- 0 until plWidth) {
+    ren1_fire(w) := io.dec_fire(w)
+    ren1_uops(w) := io.dec_uops(w)
+  }
+
 
   // Stage 2
   val ren2_fire       = io.dis_fire
@@ -113,27 +120,34 @@ abstract class AbstractRenameStage(
   // pipeline registers
 
   for (w <- 0 until plWidth) {
-    ren1_fire(w)          := io.dec_fire(w)
-    ren1_uops(w)          := io.dec_uops(w)
-  }
-
-  for (w <- 0 until plWidth) {
     val r_valid  = RegInit(false.B)
     val r_uop    = Reg(new MicroOp)
     val next_uop = Wire(new MicroOp)
 
+    // default: hold current uop
     next_uop := r_uop
 
+    // update valid / shifting logic (unchanged)
     when (io.kill) {
       r_valid := false.B
     } .elsewhen (ren2_ready) {
       r_valid := ren1_fire(w)
-      next_uop := ren1_uops(w)
+      next_uop := ren1_uops(w)      // take the new input uop when ren2 ready
     } .otherwise {
       r_valid := r_valid && !ren2_fire(w) // clear bit if uop gets dispatched
       next_uop := r_uop
     }
 
+    // ---- FIX: forward the specTimestamp from the incoming rename1 uop ----
+    // Use the timestamp that was captured earlier in ren1_uops(w)
+    // (this avoids referring to io.dec_uops as a whole Vec)
+    next_uop.specTimestamp := ren1_uops(w).specTimestamp
+    //next_uop.specTimestamp := io.dec_uops(w).specTimestamp
+
+
+    // Apply bypassing & branch-mask transformation to produce stored uop
+    // Note: BypassAllocations expects Seq[MicroOp] for older_uops; ren2_uops
+    // is a Vec but it will be used consistently in calling modules.
     r_uop := GetNewUopAndBrMask(BypassAllocations(next_uop, ren2_uops, ren2_alloc_reqs), io.brupdate)
 
     ren2_valids(w) := r_valid
@@ -143,7 +157,10 @@ abstract class AbstractRenameStage(
   //-------------------------------------------------------------
   // Outputs
 
+  // drive the external outputs from the internal wires
   io.ren2_mask := ren2_valids
+  io.ren2_uops := ren2_uops
+
 
 
 }

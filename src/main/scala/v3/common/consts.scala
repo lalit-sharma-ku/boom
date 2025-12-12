@@ -275,6 +275,8 @@ trait ScalarOpConstants
     uop.uses_ldq   := false.B
     uop.pdst       := 0.U
     uop.dst_rtype  := RT_X
+    uop.specTimestamp := 0.U
+
 
     val cs = Wire(new boom.v3.common.CtrlSignals())
     cs             := DontCare // Overridden in the following lines

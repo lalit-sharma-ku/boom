@@ -87,6 +87,10 @@ class FetchBuffer(implicit p: Parameters) extends BoomModule
   val in_mask = Wire(Vec(fetchWidth, Bool()))
   val in_uops = Wire(Vec(fetchWidth, new MicroOp()))
 
+  val cycleCounter = RegInit(0.U(64.W))
+  cycleCounter := cycleCounter + 1.U
+
+
   // Step 1: Convert FetchPacket into a vector of MicroOps.
   for (b <- 0 until nBanks) {
     for (w <- 0 until bankWidth) {
@@ -99,6 +103,9 @@ class FetchBuffer(implicit p: Parameters) extends BoomModule
       in_uops(i).edge_inst      := false.B
       in_uops(i).debug_pc       := pc
       in_uops(i).pc_lob         := pc
+
+      in_uops(i).specTimestamp := cycleCounter
+
 
       in_uops(i).is_sfb         := io.enq.bits.sfbs(i) || io.enq.bits.shadowed_mask(i)
 

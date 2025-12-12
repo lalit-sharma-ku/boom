@@ -201,6 +201,18 @@ class FetchTargetQueue(implicit p: Parameters) extends BoomModule
     enq_ptr := WrapInc(enq_ptr, num_entries)
   }
 
+  val spec_timestamps = Reg(Vec(num_entries, UInt(64.W)))
+  val cycleCounter = RegInit(0.U(64.W))
+  cycleCounter := cycleCounter + 1.U
+
+
+  when (do_enq) {
+  spec_timestamps(io.enq_idx) := cycleCounter
+  printf("[SPEC] cyc=%d ftq_idx=%d pc=0x%x\n",
+    cycleCounter, io.enq_idx, io.enq.bits.pc)
+  }
+
+
   io.enq_idx := enq_ptr
 
   io.bpdupdate.valid := false.B
