@@ -207,10 +207,28 @@ class FetchTargetQueue(implicit p: Parameters) extends BoomModule
 
 
   when (do_enq) {
-  spec_timestamps(io.enq_idx) := cycleCounter
-  printf("[SPEC] cyc=%d ftq_idx=%d pc=0x%x\n",
-    cycleCounter, io.enq_idx, io.enq.bits.pc)
+    val pc     = io.enq.bits.pc
+    val isCall = io.enq.bits.cfi_is_call
+    val isRet  = io.enq.bits.cfi_is_ret
+
+    // First print the numeric fields
+    printf("[SPEC] cyc=%d ftq_idx=%d pc=0x%x ",
+      cycleCounter, io.enq_idx, pc)
+
+    // NOW print the string part conditionally
+    when (isCall) {
+      printf("CALL")
+    } .elsewhen (isRet) {
+      printf("RET")
+    } .otherwise {
+      printf("OTHER")
+    }
+
+    printf("\n")   // end line
   }
+
+
+
 
 
   io.enq_idx := enq_ptr

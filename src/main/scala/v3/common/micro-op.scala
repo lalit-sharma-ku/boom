@@ -64,7 +64,7 @@ class MicroOp(implicit p: Parameters) extends BoomBundle
   // This inst straddles two fetch packets
 
   val specTimestamp = UInt(64.W)      // wall-cycle at enqueue/speculation time
-  
+
   val edge_inst        = Bool()
   // Low-order bits of our own PC. Combine with ftq[ftq_idx] to get PC.
   // Aligned to a cache-line size, as that is the greater fetch granularity.
@@ -155,6 +155,20 @@ class MicroOp(implicit p: Parameters) extends BoomBundle
   def unsafe           = uses_ldq || (uses_stq && !is_fence) || is_br || is_jalr
 
   def fu_code_is(_fu: UInt) = (fu_code & _fu) =/= 0.U
+
+
+  // // -----------------------------------------------
+  // // Helper: Detect CALL and RETURN instructions
+  // // -----------------------------------------------
+  // def is_call: Bool =
+  //   (is_jal  && ldst === 1.U) ||       // jal ra, target
+  //   (is_jalr && ldst === 1.U)         // jalr ra, rs1, imm
+
+  // def is_ret: Bool =
+  //   is_jalr &&
+  //   prs1 === 1.U &&                    // rs1 = ra
+  //   ldst === 0.U                       // rd = x0
+
 }
 
 /**

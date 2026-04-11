@@ -713,17 +713,45 @@ class Rob(
   cycleCounter := cycleCounter + 1.U
 
 
+  // for (i <- 0 until coreWidth) {
+  //   when (io.commit.valids(i)) {
+  //     val u = io.commit.uops(i)      // THIS is the committed MicroOp
+  //     val start  = u.specTimestamp
+  //     val finish = cycleCounter
+  //     val latency = finish - start
+
+  //     printf("[COMMIT] cyc=%d pc=0x%x latency=%d cycles\n",
+  //       finish, u.debug_pc, latency)
+  //   }
+  // }
+
   for (i <- 0 until coreWidth) {
     when (io.commit.valids(i)) {
-      val u = io.commit.uops(i)      // THIS is the committed MicroOp
+      val u = io.commit.uops(i)      // committed MicroOp (hardware bundle)
       val start  = u.specTimestamp
       val finish = cycleCounter
       val latency = finish - start
 
-      printf("[COMMIT] cyc=%d pc=0x%x latency=%d cycles\n",
+      printf("[COMMIT] cyc=%d pc=0x%x latency=%d cycles ",
         finish, u.debug_pc, latency)
+
+      // Print kind as text — use Chisel when/elsewhen to select print
+      val isCall = u.is_jal & (u.pdst === 1.U)   // or your exact test for call
+      val isRet  = u.is_jalr & (u.lrs1 === 1.U) & (u.pdst === 0.U)
+
+      when (isCall) {
+        printf("CALL")
+      } .elsewhen (isRet) {
+        printf("RET")
+      } .otherwise {
+        printf("OTHER")
+      }
+
+      printf("\n")
     }
   }
+
+
 
 
 
