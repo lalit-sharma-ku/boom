@@ -25,6 +25,7 @@ import freechips.rocketchip.util.{Str}
 import boom.v3.common._
 import boom.v3.exu._
 import boom.v3.util._
+import midas.targetutils.SynthesizePrintf
 
 /**
  * FTQ Parameters used in configurations
@@ -206,27 +207,34 @@ class FetchTargetQueue(implicit p: Parameters) extends BoomModule
   cycleCounter := cycleCounter + 1.U
 
 
+  // when (do_enq) {
+  //   val pc     = io.enq.bits.pc
+  //   val isCall = io.enq.bits.cfi_is_call
+  //   val isRet  = io.enq.bits.cfi_is_ret
+
+  //   // First print the numeric fields
+  //   printf("[SPEC] cyc=%d ftq_idx=%d pc=0x%x ",
+  //     cycleCounter, io.enq_idx, pc)
+
+  //   // NOW print the string part conditionally
+  //   when (isCall) {
+  //     printf("CALL")
+  //   } .elsewhen (isRet) {
+  //     printf("RET")
+  //   } .otherwise {
+  //     printf("OTHER")
+  //   }
+
+  //   printf("\n")   // end line
+  // }
   when (do_enq) {
     val pc     = io.enq.bits.pc
     val isCall = io.enq.bits.cfi_is_call
     val isRet  = io.enq.bits.cfi_is_ret
-
-    // First print the numeric fields
-    printf("[SPEC] cyc=%d ftq_idx=%d pc=0x%x ",
-      cycleCounter, io.enq_idx, pc)
-
-    // NOW print the string part conditionally
-    when (isCall) {
-      printf("CALL")
-    } .elsewhen (isRet) {
-      printf("RET")
-    } .otherwise {
-      printf("OTHER")
-    }
-
-    printf("\n")   // end line
+    val kind   = Mux(isCall, 1.U, Mux(isRet, 2.U, 3.U))
+    SynthesizePrintf(printf("[SPEC] cyc=%d ftq_idx=%d pc=0x%x kind=%d\n",
+      cycleCounter, io.enq_idx, pc, kind))
   }
-
 
 
 

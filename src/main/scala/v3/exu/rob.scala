@@ -33,6 +33,8 @@ import freechips.rocketchip.util._
 
 import boom.v3.common._
 import boom.v3.util._
+import midas.targetutils.SynthesizePrintf
+
 
 /**
  * IO bundle to interact with the ROB
@@ -720,37 +722,49 @@ class Rob(
   //     val finish = cycleCounter
   //     val latency = finish - start
 
-  //     printf("[COMMIT] cyc=%d pc=0x%x latency=%d cycles\n",
+  //     SynthesizePrintf(printf("[COMMIT] cyc=%d pc=0x%x latency=%d cycles\n",
   //       finish, u.debug_pc, latency)
   //   }
   // }
 
-  for (i <- 0 until coreWidth) {
-    when (io.commit.valids(i)) {
-      val u = io.commit.uops(i)      // committed MicroOp (hardware bundle)
-      val start  = u.specTimestamp
-      val finish = cycleCounter
-      val latency = finish - start
+  // for (i <- 0 until coreWidth) {
+  //   when (io.commit.valids(i)) {
+  //     val u = io.commit.uops(i)      // committed MicroOp (hardware bundle)
+  //     val start  = u.specTimestamp
+  //     val finish = cycleCounter
+  //     val latency = finish - start
 
-      printf("[COMMIT] cyc=%d pc=0x%x latency=%d cycles ",
-        finish, u.debug_pc, latency)
+  //     SynthesizePrintf(printf("[COMMIT] cyc=%d pc=0x%x latency=%d cycles ",
+  //       finish, u.debug_pc, latency)
 
-      // Print kind as text — use Chisel when/elsewhen to select print
-      val isCall = u.is_jal & (u.pdst === 1.U)   // or your exact test for call
-      val isRet  = u.is_jalr & (u.lrs1 === 1.U) & (u.pdst === 0.U)
+  //     // Print kind as text — use Chisel when/elsewhen to select print
+  //     val isCall = u.is_jal & (u.pdst === 1.U)   // or your exact test for call
+  //     val isRet  = u.is_jalr & (u.lrs1 === 1.U) & (u.pdst === 0.U)
 
-      when (isCall) {
-        printf("CALL")
-      } .elsewhen (isRet) {
-        printf("RET")
-      } .otherwise {
-        printf("OTHER")
+  //     when (isCall) {
+  //       printf("CALL")
+  //     } .elsewhen (isRet) {
+  //       printf("RET")
+  //     } .otherwise {
+  //       printf("OTHER")
+  //     }
+
+  //     printf("\n")
+  //   }
+  // }
+    for (i <- 0 until coreWidth) {
+      when (io.commit.valids(i)) {
+        val u = io.commit.uops(i)
+        val start   = u.specTimestamp
+        val finish  = cycleCounter
+        val latency = finish - start
+        val isCall  = u.is_jal  & (u.pdst === 1.U)
+        val isRet   = u.is_jalr & (u.lrs1 === 1.U) & (u.pdst === 0.U)
+        val kind    = Mux(isCall, 1.U, Mux(isRet, 2.U, 3.U))
+        SynthesizePrintf(printf("[COMMIT] cyc=%d pc=0x%x latency=%d cycles kind=%d\n",
+          finish, u.debug_pc, latency, kind))
       }
-
-      printf("\n")
-    }
   }
-
 
 
 
