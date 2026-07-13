@@ -44,7 +44,9 @@ import boom.v3.common._
 import boom.v3.ifu.{GlobalHistory, HasBoomFrontendParameters}
 import boom.v3.exu.FUConstants._
 import boom.v3.util._
+import midas.targetutils.SynthesizePrintf
 
+import midas.targetutils.PerfCounter
 /**
  * Top level core object that connects the Frontend to the rest of the pipeline.
  */
@@ -62,11 +64,20 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
     val trace = Output(new TraceBundle)
     val fcsr_rm = UInt(freechips.rocketchip.tile.FPConstants.RM_SZ.W)
   })
+  
+  val coreCycle = RegInit(0.U(64.W))
+  coreCycle := coreCycle + 1.U
+
+  when (coreCycle(10,0) === 0.U) {
+      //SynthesizePrintf(printf("[CORE] cyc=%d\n", coreCycle))
+  
+     printf(midas.targetutils.SynthesizePrintf("[CORE] cyc=%d\n", coreCycle))
+  }
 
   io.ptw_tlb := DontCare
   io.ptw := DontCare
   io.ifu := DontCare
-
+  
   //**********************************
   // construct all of the modules
 
@@ -217,6 +228,43 @@ class BoomCore()(implicit p: Parameters) extends BoomModule
   b2.uop         := UpdateBrMask(brupdate, oldest_mispredict.uop)
   b2.jalr_target := RegNext(jmp_unit.io.brinfo.jalr_target)
   b2.target_offset := oldest_mispredict.target_offset
+
+
+
+  // --------------------------------------
+  // Performance Counters (Branch / RAS)
+
+  // Total branch resolutions
+  PerfCounter(b2.valid, "br_resolve", "Branch resolutions")
+
+  // Branch mispredictions
+  PerfCounter(b2.valid && b2.mispredict, "br_mispredict", "Branch mispredictions")
+
+  // JALR executions (returns, indirect calls)
+  //PerfCounter(
+   // b2.valid && b2.cfi_type === CFI_JALR,
+   // "jalr_total",
+   // "Total JALR instructions"
+  //)
+
+  //JALR mispredictions (RAS failures proxy)
+  PerfCounter(b2.valid && b2.mispredict && (b2.uop.uopc === uopJALR), "jalr_mispredict", "JALR mispredictions" )
+  
+  // for (w <- 0 until coreWidth) {
+  //  val u = rob.io.commit.uops(w)
+  //  val valid = rob.io.commit.arch_valids(w)
+
+  //    PerfCounter(valid && u.is_jalr, "jalr_total", "Total JALR instructions")
+  //   // PerfCounter(valid && u.is_jalr && u.mispredict, "jalr_mispredict", "JALR mispredictions")
+  // }
+  
+  val jalrVec = (0 until coreWidth).map { w =>
+    val u = rob.io.commit.uops(w)
+    val valid = rob.io.commit.arch_valids(w)
+    valid && u.is_jalr
+  }
+
+  PerfCounter(jalrVec.reduce(_||_), "jalr_total", "Total JALR instructions")
 
   val oldest_mispredict_ftq_idx = oldest_mispredict.uop.ftq_idx
 

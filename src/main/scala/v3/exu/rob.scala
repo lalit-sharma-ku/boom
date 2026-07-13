@@ -34,7 +34,7 @@ import freechips.rocketchip.util._
 import boom.v3.common._
 import boom.v3.util._
 import midas.targetutils.SynthesizePrintf
-
+import midas.targetutils.PerfCounter
 
 /**
  * IO bundle to interact with the ROB
@@ -712,8 +712,16 @@ class Rob(
   // -----------------------------------------------------------------------------
 
   val cycleCounter = RegInit(0.U(64.W))
-  cycleCounter := cycleCounter + 1.U
+    cycleCounter := cycleCounter + 1.U
+  // UNCONDITIONAL test - fires every single cycle
+  //SynthesizePrintf(printf("[HEARTBEAT] cyc=%d pad=0x%x\n", cycleCounter, 0.U(447.W)))
 
+    when (cycleCounter(19, 0) === 0.U) {
+      midas.targetutils.SynthesizePrintf(printf("[HEARTBEAT] cyc=%d pad=0x%x\n", cycleCounter, 0.U(447.W)))
+    }
+
+
+  // 64(cyc) + 447(pad) + 1(enable) = 512 bits exactly
 
   // for (i <- 0 until coreWidth) {
   //   when (io.commit.valids(i)) {
@@ -752,19 +760,88 @@ class Rob(
   //     printf("\n")
   //   }
   // }
-    for (i <- 0 until coreWidth) {
-      when (io.commit.valids(i)) {
-        val u = io.commit.uops(i)
-        val start   = u.specTimestamp
-        val finish  = cycleCounter
-        val latency = finish - start
-        val isCall  = u.is_jal  & (u.pdst === 1.U)
-        val isRet   = u.is_jalr & (u.lrs1 === 1.U) & (u.pdst === 0.U)
-        val kind    = Mux(isCall, 1.U, Mux(isRet, 2.U, 3.U))
-        SynthesizePrintf(printf("[COMMIT] cyc=%d pc=0x%x latency=%d cycles kind=%d\n",
-          finish, u.debug_pc, latency, kind))
-      }
+   // for (i <- 0 until coreWidth) {
+     // when (io.commit.valids(i)) {
+     //   val u = io.commit.uops(i)
+     //   val start   = u.specTimestamp
+     //   val finish  = cycleCounter
+    //  val latency = finish - start
+    //    val isCall  = u.is_jal  & (u.pdst === 1.U)
+    //    val isRet   = u.is_jalr & (u.lrs1 === 1.U) & (u.pdst === 0.U)
+    //    val kind    = Mux(isCall, 1.U, Mux(isRet, 2.U, 3.U))
+    //    SynthesizePrintf(printf("[COMMIT] cyc=%d pc=0x%x latency=%d cycles kind=%d\n",
+    //      finish, u.debug_pc, latency, kind))
+    //  }
+     val u = io.commit.uops(0)
+
+    // when (io.commit.valids(0)) {
+    //   SynthesizePrintf(printf("[COMMIT] pc=0x%x\n", u.debug_pc))
+    //  }
+
+     // COMMIT: one print per commit slot using the correct uop index
+    // for (i <- 0 until 3) {
+      // when (io.commit.valids(i)) {
+       //  SynthesizePrintf(printf("[COMMIT] pc=0x%x pad=0x%x\n", 
+        //   io.commit.uops(i).debug_pc, 0.U(471.W)))
+     //  }
+    // }
+     //when (io.commit.valids.reduce(_||_)) {
+     //  val u = io.commit.uops(0) // safe representative
+     //  SynthesizePrintf(printf("[COMMIT] pc=0x%x\n", u.debug_pc))
+     //}
+     
+     when (io.commit.valids.reduce(_||_)) {
+       SynthesizePrintf(printf("[COMMIT ANY]\n"))
+     }
+     
+  //   import midas.targetutils.PerfCounter
+
+  // commits (keep this as-is)
+  PerfCounter(io.commit.valids.reduce(_||_), "commits", "Committed instructions")
+
+  // ---- aggregate across lanes ----
+
+  val callVec = (0 until coreWidth).map { i =>
+    val u = io.commit.uops(i)
+    val inst = u.debug_inst
+
+    val opcode = inst(6,0)
+    val rd  = inst(11,7)
+    val rs1 = inst(19,15)
+
+    val isJAL  = opcode === "b1101111".U
+    val isJALR = opcode === "b1100111".U
+
+    val isCall = (isJAL && rd === 1.U) || (isJALR && rd === 1.U)
+
+    io.commit.valids(i) && isCall
   }
+
+    val retVec = (0 until coreWidth).map { i =>
+    val u = io.commit.uops(i)
+    val inst = u.debug_inst
+
+    val opcode = inst(6,0)
+    val rd  = inst(11,7)
+    val rs1 = inst(19,15)
+
+    val isJALR = opcode === "b1100111".U
+
+    val isRet = isJALR && rs1 === 1.U
+
+    io.commit.valids(i) && isRet
+  }
+
+  // ---- single counters ----
+
+  PerfCounter(callVec.reduce(_||_), "calls", "Function calls")
+  PerfCounter(retVec.reduce(_||_),  "returns", "Function returns")
+
+
+   //  when (io.commit.valids(3)) {
+    //   SynthesizePrintf(printf("[COMMIT] pc=0x%x pad=0x%x\n", u.debug_pc, 0.U(471.W)))  // 40 + 471 + 1(ena
+    //  }
+ // }
 
 
 

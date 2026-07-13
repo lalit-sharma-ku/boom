@@ -27,6 +27,7 @@ import boom.v3.common._
 import boom.v3.exu.{CommitExceptionSignals, BranchDecode, BrUpdateInfo, BranchDecodeSignals}
 import boom.v3.util._
 
+import midas.targetutils.PerfCounter
 
 class FrontendResp(implicit p: Parameters) extends BoomBundle()(p) {
   val pc = UInt(vaddrBitsExtended.W)  // ID stage PC
@@ -810,6 +811,24 @@ class BoomFrontendModule(outer: BoomFrontend) extends LazyModuleImp(outer)
 
   val f3_correct_f1_ghist = s1_ghist =/= f3_predicted_ghist && enableGHistStallRepair.B
   val f3_correct_f2_ghist = s2_ghist =/= f3_predicted_ghist && enableGHistStallRepair.B
+
+
+
+  val frontendCall =
+    f3.io.deq.valid && f4_ready &&
+    f3_fetch_bundle.cfi_is_call && f3_fetch_bundle.cfi_idx.valid
+
+  PerfCounter(frontendCall, "frontend_calls", "Calls seen at fetch")
+
+  val frontendRet =
+    f3.io.deq.valid && f4_ready &&
+    f3_fetch_bundle.cfi_is_ret && f3_fetch_bundle.cfi_idx.valid
+
+  PerfCounter(frontendRet, "frontend_returns", "Returns seen at fetch")
+
+
+
+
 
   when (f3.io.deq.valid && f4_ready) {
     when (f3_fetch_bundle.cfi_is_call && f3_fetch_bundle.cfi_idx.valid) {

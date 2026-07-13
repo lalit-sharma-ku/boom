@@ -27,6 +27,7 @@ import boom.v3.exu._
 import boom.v3.util._
 import midas.targetutils.SynthesizePrintf
 
+import midas.targetutils.PerfCounter
 /**
  * FTQ Parameters used in configurations
  *
@@ -227,14 +228,23 @@ class FetchTargetQueue(implicit p: Parameters) extends BoomModule
 
   //   printf("\n")   // end line
   // }
-  when (do_enq) {
-    val pc     = io.enq.bits.pc
-    val isCall = io.enq.bits.cfi_is_call
-    val isRet  = io.enq.bits.cfi_is_ret
-    val kind   = Mux(isCall, 1.U, Mux(isRet, 2.U, 3.U))
-    SynthesizePrintf(printf("[SPEC] cyc=%d ftq_idx=%d pc=0x%x kind=%d\n",
-      cycleCounter, io.enq_idx, pc, kind))
-  }
+  //when (do_enq) {
+    //val pc     = io.enq.bits.pc
+    //val isCall = io.enq.bits.cfi_is_call
+   // val isRet  = io.enq.bits.cfi_is_ret
+   // val kind   = Mux(isCall, 1.U, Mux(isRet, 2.U, 3.U))
+  //  SynthesizePrintf(printf("[SPEC] cyc=%d ftq_idx=%d pc=0x%x kind=%d\n",
+  //    cycleCounter, io.enq_idx, pc, kind))
+  //}
+   when (do_enq) {
+     val pc     = io.enq.bits.pc
+     val isCall = io.enq.bits.cfi_is_call
+     val isRet  = io.enq.bits.cfi_is_ret
+     val kind   = Mux(isCall, 1.U, Mux(isRet, 2.U, 3.U))
+     midas.targetutils.SynthesizePrintf(printf("[SPEC] cyc=%d ftq_idx=%d pc=0x%x kind=%d pad=0x%x\n",
+       cycleCounter, io.enq_idx, pc, kind, 0.U(401.W)))
+     // 64+5+40+2+401+1(enable) = 513 → round to 512
+    }
 
 
 
@@ -361,11 +371,14 @@ class FetchTargetQueue(implicit p: Parameters) extends BoomModule
       redirect_new_entry.cfi_taken        := io.brupdate.b2.taken
       redirect_new_entry.cfi_is_call      := redirect_entry.cfi_is_call && redirect_entry.cfi_idx.bits === new_cfi_idx
       redirect_new_entry.cfi_is_ret       := redirect_entry.cfi_is_ret  && redirect_entry.cfi_idx.bits === new_cfi_idx
-    }
+      PerfCounter(io.redirect.valid && io.brupdate.b2.mispredict,"ftq_mispredict","Mispredictions at FTQ")
+}
 
     ras_update     := true.B
     ras_update_pc  := redirect_entry.ras_top
     ras_update_idx := redirect_entry.ras_idx
+ 
+    PerfCounter(io.redirect.valid,"ftq_redirects", "Redirects (control-flow corrections)")
 
   } .elsewhen (RegNext(io.redirect.valid)) {
     prev_entry := RegNext(redirect_new_entry)
@@ -374,7 +387,8 @@ class FetchTargetQueue(implicit p: Parameters) extends BoomModule
 
     ram(RegNext(io.redirect.bits)) := RegNext(redirect_new_entry)
   }
-
+   PerfCounter( io.redirect.valid && io.brupdate.b2.mispredict && redirect_entry.cfi_is_ret,"ftq_ret_mispredict", "Return mispredictions")
+   PerfCounter( io.redirect.valid && io.brupdate.b2.mispredict && redirect_entry.cfi_is_call, "ftq_call_mispredict", "Call mispredictions")
   //-------------------------------------------------------------
   // **** Core Read PCs ****
   //-------------------------------------------------------------
